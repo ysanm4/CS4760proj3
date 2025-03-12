@@ -1,9 +1,10 @@
 //Written by Yosef Alqufidi
-//Date 3/3/25
-//updated from project 1
+//Date 3/18/25
+//updated from project 2
 
 
 #include <iostream>
+#include <fstream>
 #include <cstdlib>
 #include <unistd.h>
 #include <sys/types.h>
@@ -14,6 +15,7 @@
 #include <sys/shm.h>
 #include <ctime>
 #include <string>
+#include <sys/msg.h>
 
 using namespace std;
 
@@ -26,18 +28,49 @@ struct PCB{
 	pid_t pid;
 	int startSeconds;
 	int startNano;
+	int messagesSent;
 };
 
+// clock struct
 struct ClockDigi{
 	int sysClockS;
 	int sysClockNano;
+};
+
+// message struct
+struct Message{
+	long mtype;
+	int data;
 };
 
 PCB processTable[PROCESS_TABLE];
 
 int shmid;
 ClockDigi* clockVal = nullptr;
+int msgid;
 
+ofstream logFile;
+
+void printProcessTable(){
+	cout<<"Process Table:\n";
+	cout<<"Entry\tOccupied\tPID\tStartS\tStartN\tMessagesSent\n";
+	logFile<<"Process Table:\n";
+	logFile << "Entry\tOccupied\tPID\tStartS\tStartN\tMessagesSent\n";
+    for (int i = 0; i < PROCESS_TABLE; i++) {
+        cout << i << "\t" << processTable[i].occupied << "\t\t"
+             << processTable[i].pid << "\t"
+             << processTable[i].startSeconds << "\t"
+             << processTable[i].startNano << "\t"
+             << processTable[i].messagesSent << "\n";
+        logFile << i << "\t" << processTable[i].occupied << "\t\t"
+                << processTable[i].pid << "\t"
+                << processTable[i].startSeconds << "\t"
+                << processTable[i].startNano << "\t"
+                << processTable[i].messagesSent << "\n";
+    }
+    cout.flush();
+    logFile.flush();
+}
 
 void signal_handler(int sig) {
     // code to send kill signal to all children based on their PIDs in process table
@@ -51,6 +84,10 @@ if(clockVal != nullptr){
 	shmdt(clockVal);
 }
 shmctl(shmid, IPC_RMID, NULL);
+msgctl(msgid, IPC_RMID, NULL);
+if(logFile.is_open()){
+	logFile.close();
+}
     exit(1);
 }
 
@@ -62,11 +99,12 @@ int main( int argc, char *argv[]){
 	int s_case = 0;
 	int t_case = 0;
 	int i_case = 0;
-	bool n_var = false, s_var = false, t_var = false, i_var = false;
+	string logFileName;
+	bool n_var = false, s_var = false, t_var = false, i_var = false, f_var = false;
 	int opt;
 
 //setting up the parameters for h,n,s,t,i
-	while ((opt = getopt(argc, argv, "hn:s:t:i: ")) != -1) {
+	while ((opt = getopt(argc, argv, "hn:s:t:i:f: ")) != -1) {
 		switch (opt){
 			case 'h':
 			cout<< "This is the help menu\n";
@@ -74,7 +112,8 @@ int main( int argc, char *argv[]){
 			cout<< "-n: processes\n";
 			cout<< "-s: simultaneous\n";
 			cout<< "-t: iterations\n";
-			cout<< "To run try ./oss -n 1 -s 1 -t 1 -i 100\n";
+			cout<< "-f: logfile\n";
+			cout<< "To run try ./oss -n 1 -s 1 -t 1 -i 100 -f\n";
 
 	return EXIT_SUCCESS;
 
@@ -96,7 +135,11 @@ int main( int argc, char *argv[]){
 			case 'i':
 				i_case = atoi(optarg);
 				i_var = true;
-				break;	
+				break;
+			case 'f':
+                		logFileName = optarg;
+                		f_var = true;
+                		break;
 
 			default:
 				cout<< "invalid";
@@ -106,9 +149,15 @@ int main( int argc, char *argv[]){
 	}
 
 //only allow all three to be used together and not by itself 	
-	if(!n_var || !s_var || !t_var || !i_var){
-		cout<<"ERROR: You cannot do one alone please do -n, -s, -t, and -i together.\n";
+	if(!n_var || !s_var || !t_var || !i_var || !f_var){
+		cout<<"ERROR: You cannot do one alone please do -n, -s, -t,-i and -f together.\n";
 			return EXIT_FAILURE;
+	}
+
+	logFile.open(logFileName.c_str());
+	if(!logFile){
+		cout<<"error could not open" << logFileName << "\n";
+		return EXIT_FAILURE;
 	}
 
 //shared memory for clock using key to verify
@@ -138,7 +187,19 @@ for(int i = 0; i < PROCESS_TABLE; i++){
 	processTable[i].pid = 0;
 	processTable[i].startSeconds = 0;
 	processTable[i].startNano = 0;
+	processTable[i].messagesSent = 0;
 }
+
+//message queue V system
+
+key_t msgKey = 6321;
+
+msgid = msgget(msgKey, IPC_CREAT | 0666);
+	if(msgid < 0){
+		perror("msgget");
+		return EXIT_FAILURE;
+	}
+
 
 //signal and alarm to terminate after 60 real life seconds
 
@@ -151,17 +212,16 @@ srand(time(NULL));
 int laun = 0;
 //running
 int runn = 0;
-
+//meassages sent
+int totalMessagesSent = 0;
 //tracking final printing 
-int Finprsec = clockVal->sysClockS;
-int Finprnano = clockVal->sysClockNano;
-
-//trackinh final launched
-int FinlaunSec = clockVal->sysClockS;
-int FinlaunNano = clockVal->sysClockNano;
+long long lastPrintTime = 0;
+long long lastLaunchedTime = 0;
 
 //clock simulation -----------------------------------------------------------------------------------------------------------------
-int launIntN = i_case * 10000000;
+long long launInterval = (long long)i_case * 10000000LL;
+
+int next MsgIndex = 0;///////////////////H//////////////H
 
 while(laun < n_case || runn > 0){
 	clockVal->sysClockNano += 10000000;
