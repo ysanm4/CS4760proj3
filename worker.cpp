@@ -1,13 +1,15 @@
 //Written by Yosef Alqufidi
-//Date 3/3/25
-//updated from project 1
+//Date 3/18/25
+//updated from project 2
 
 #include <iostream>
 #include <unistd.h>
 #include <cstdlib>
 #include <sys/ipc.h>
 #include <sys/shm.h>
+#include <sys/msg.h>
 #include <cstdio>
+#include <cstring>
 
 using namespace std;
 
@@ -16,6 +18,12 @@ using namespace std;
 struct ClockDigi{
 	int sysClockS;
 	int sysClockNano;
+};
+
+//message struct
+struct Message{
+	long mtype;
+	int data;
 };
 
 //logic for shared memory
@@ -34,11 +42,11 @@ int Nanoval = atoi(argv[2]);
 
 //shared memory key
 
-key_t key = 6321;
+key_t key shmKey= 6321;
 
 //access to shared memory
 
-int shmid = shmget(key, sizeof(ClockDigi), 0666);
+int shmid = shmget(shmKey, sizeof(ClockDigi), 0666);
 if(shmid < 0){
 	perror("shmget");
 	return EXIT_FAILURE;
@@ -52,13 +60,13 @@ if (clockVal == (void*) -1){
 
 //start reading from simulated clock 
 
-int stRdSec = clockVal->sysClockS;
-int stRdNano = clockVal->sysClockNano;
+int startSec = clockVal->sysClockS;
+int startNano = clockVal->sysClockNano;
 
 //termination
 
-int termSec = stRdSec + Secval;
-int termNano = stRdNano + Nanoval;
+int termSec = startSec + Secval;
+int termNano = startNano + Nanoval;
 
 if(termNano >= 1000000000){
 	termSec += termNano / 1000000000;
@@ -67,6 +75,15 @@ if(termNano >= 1000000000){
 
 //outputs
 //...........................................................................................
+
+key_t msgKey = 6321;
+int msgid = msgget(msgKey, 0666);
+if(msgid < 0){
+	perror("msgget");
+	shmdt(clockVal);
+	return EXIT_FAILURE;
+}
+
 cout << "WORKER PID: " << getpid()
          << " PPID: " << getppid()
          << " SysClockS: " << clockVal->sysClockS
@@ -74,39 +91,61 @@ cout << "WORKER PID: " << getpid()
          << " TermTimeS: " << termSec
          << " TermTimeNano: " << termNano << "\n";
          cout << "JUST STARTING" << "\n";
+	
+	int iteration = 0;
+	message msg;
 
 //checks and busy wait
   
-	 int lastPrintedSec = stRdSec;
+	 
 while (true){
+
+	if(msgrcv(msgid, &msg, sizeof(msg.data), getpid(),0) == -1){
+		perror("msgrcv");
+		break;
+	}
+
+	iteration++;
+
 	int curr_Sec = clockVal->sysClockS;
 	int curr_Nano = clockVal->sysClockNano;
 
-
-if(curr_Sec > lastPrintedSec && curr_Sec < termSec){
-	int contnu = curr_Sec - stRdSec;
     cout << "WORKER PID: " << getpid()
          << " PPID: " << getppid()
-         << " SysClockS: " << clockVal->sysClockS
-         << " SysclockNano: " << clockVal->sysClockNano
+         << " SysClockS: " << curr_Sec
+         << " SysclockNano: " << curr_Nano
          << " TermTimeS: " << termSec
          << " TermTimeNano: " << termNano << "\n";
-    cout << contnu << " seconds have passed since starting" << "\n";
-    lastPrintedSec = curr_Sec;
-}
+    cout << "--" << iteration << "iteration"
+	 << (iteration == 1 ? "has" : "s have")
+	 << "passed since starting\n";
+
+   Message reply;
+   reply.mtype = getpid(); 
+  
 
     //checks to term or not
    
 if(curr_Sec > termSec || (curr_Sec == termSec && curr_Nano >= termNano)){  
     cout << "WORKER PID: " << getpid()
          << " PPID: " << getppid()
-         << " SysClockS: " << clockVal->sysClockS
-         << " SysclockNano: " << clockVal->sysClockNano
+         << " SysClockS: " << curr_Sec
+         << " SysclockNano: " << curr_Nano
          << " TermTimeS: " << termSec
          << " TermTimeNano: " << termNano << "\n";
-    cout << "TERMINATING" << "\n";
+    cout << "--Terminating after sending message back to oss" 
+	    << iteration << "iterations.\n;
+    reply.data = 0;
+    if(msgsnd(msgid, &reply, sizeof(reply.data), 0) == -1){
+	    perror("msgsnd");
+    }
     break;
+}else{
+	reply.data = 1;
+	if(msgsnd(msgid, &reply, sizeof(reply.data), 0) == -1){
+		perror("msgsnd");
 	}
+    }
 }
     
     shmdt(clockVal);
