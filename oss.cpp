@@ -221,19 +221,70 @@ long long lastLaunchedTime = 0;
 //clock simulation -----------------------------------------------------------------------------------------------------------------
 long long launInterval = (long long)i_case * 10000000LL;
 
-int next MsgIndex = 0;///////////////////H//////////////H
+int next MsgIndex = 0;
 
 while(laun < n_case || runn > 0){
-	clockVal->sysClockNano += 10000000;
-	if(clockVal->sysClockNano >= 1000000000){
-		clockVal->sysClockS += clockVal->sysClockNano / 1000000000;
-		clockVal->sysClockNano %= 1000000000;
+	long long increment;
+	if(runn > 0){
+		increment = 250000000LL / runn;
+	}else{
+		increment = 250000000LL;
+	}
+	long long totalNano = (long long)clockVal->sysClockS * 1000000000LL +
+		clockVal->sysClockNano + increment;
+	clockVal->sysClockS = totalNano / 1000000000LL;
+	clockVal->sysClockNano = totalNano % 1000000000LL;
+
+	long long currentTime = (long long)clockVal->sysClockS * 1000000000 +
+		clockVal->sysClockNano;
+	if(currentTime - lastPrintTime >= 500000000LL){
+		cout<<"OSS PID:" << getpid() <<"SysClock:"
+			<< clockVal->sysClockS <<":"<< clockVal->sysClockNano <<"\n";
+		logFile <<"OSS PID:" <<getpid() <<"SysClock:"
+			<< clockVal->sysClock <<":"<< clockVal->sysClockNano << "\n";
+		printProcessTable();
+		lastPrintTime = currentTime;
 	}
 
-	long long lastPrintTotal = (long long)Finprsec * 1000000000LL + Finprnano;
-	long long currentTotal = (long long)clockVal->sysClockS * 1000000000LL + clockVal->sysClockNano;
-	if(currentTotal - lastPrintTotal >= 500000000){
-		cout<<"OSS PID: " << getpid() <<"SysClockS: " << clockVal->sysClockS <<"SysClockNano: " << clockVal->sysClockNano << "\n";
+	int startIndex = nextMsgIndex;
+	bool found = false;
+	int activeIndex = -1;
+	for(int i = 0; i < PROCESS_TABLE; i++){
+		int idx = (startIndex + i) % PROCESS_TABLE;
+		if (processTable[idx].occupied){
+			activeIndex = idx;
+			found = true;
+			break;
+		}
+	}
+	if(found){
+		Message msg;
+		msg.mtype = processTable[activeIndex].pid;
+		msg.data = 1;
+		if(msgsnd(msgid, &msg, sizeof(msg.data), 0) == -1){
+			perror("msgsnd");
+			processTable[activeIndex].messagesSent++;
+			totalMessagesSent++
+		cout<< "OSS: sending msg to worker" << activeIndex
+		    << "PID" << processTable[activeIndex].pid
+		    << " at time" << clockVal->sysClockS << ":" << clockVal-sysClockNano << "\n";
+    logFilse << "OSS: Sending messages to worker" << activeIndex
+             << " PID " << processTable[activeIndex].pid
+ 	     << " at time " << clockVal->sysClockS << ":" << clockVal->sysClockNano << "\n";
+		}
+
+	Message reply;////////////////////////H//////////H
+
+	//clockVal->sysClockNano += 10000000;
+	//if(clockVal->sysClockNano >= 1000000000){
+	//	clockVal->sysClockS += clockVal->sysClockNano / 1000000000;
+	//	clockVal->sysClockNano %= 1000000000;
+	//}
+
+	//long long lastPrintTotal = (long long)Finprsec * 1000000000LL + Finprnano;
+	//long long currentTotal = (long long)clockVal->sysClockS * 1000000000LL + clockVal->sysClockNano;
+	//if(currentTotal - lastPrintTotal >= 500000000){
+	//	cout<<"OSS PID: " << getpid() <<"SysClockS: " << clockVal->sysClockS <<"SysClockNano: " << clockVal->sysClockNano << "\n";
 
 
 		cout<<"Process Table:------------------------------------------------------------------------------------------\n";
