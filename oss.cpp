@@ -52,7 +52,7 @@ int msgid;
 ofstream logFile;
 
 void printProcessTable(){
-	cout<<"Process Table:\n";
+	cout<<"Process Table:----------------------------------------------------------------\n";
 	cout<<"Entry\tOccupied\tPID\tStartS\tStartN\tMessagesSent\n";
 	logFile<<"Process Table:\n";
 	logFile << "Entry\tOccupied\tPID\tStartS\tStartN\tMessagesSent\n";
@@ -268,97 +268,93 @@ while(laun < n_case || runn > 0){
 		cout<< "OSS: sending msg to worker" << activeIndex
 		    << "PID" << processTable[activeIndex].pid
 		    << " at time" << clockVal->sysClockS << ":" << clockVal-sysClockNano << "\n";
-    logFilse << "OSS: Sending messages to worker" << activeIndex
+    logFile << "OSS: Sending messages to worker" << activeIndex
              << " PID " << processTable[activeIndex].pid
  	     << " at time " << clockVal->sysClockS << ":" << clockVal->sysClockNano << "\n";
 		}
 
-	Message reply;////////////////////////H//////////H
-
-	//clockVal->sysClockNano += 10000000;
-	//if(clockVal->sysClockNano >= 1000000000){
-	//	clockVal->sysClockS += clockVal->sysClockNano / 1000000000;
-	//	clockVal->sysClockNano %= 1000000000;
-	//}
-
-	//long long lastPrintTotal = (long long)Finprsec * 1000000000LL + Finprnano;
-	//long long currentTotal = (long long)clockVal->sysClockS * 1000000000LL + clockVal->sysClockNano;
-	//if(currentTotal - lastPrintTotal >= 500000000){
-	//	cout<<"OSS PID: " << getpid() <<"SysClockS: " << clockVal->sysClockS <<"SysClockNano: " << clockVal->sysClockNano << "\n";
+	Message reply;
+	if(msgrcv(msgid, &reply, sizeof(reply.data), processTable[activeIndex].pid, 0) == -1){
+		perror("msgrcv");
+	}else{
+		cout<<"OSS: Recived message from worker" << activeIndex
+			<<"PID"<< processTable[activeIndex].pid
+			<<"at time"<< clockVal->sysClockS<<":"<<clockVal->sysClockNano<<"\n";
+		logFile<<"OSS: recived message from worker"<< activeIndex
+			<<"PID"<< processTable[activeIndex].pid
+			<<"at timr"<< clockVal->sysClockS<<":"<< clockVal->sysClockNano<<"\n";
 
 
-		cout<<"Process Table:------------------------------------------------------------------------------------------\n";
-		cout<<"Entry\tOccupied\tPID\tStartS\tStartN\n";
-		for(int i = 0; i < PROCESS_TABLE; i++){
-		cout<< i << "\t" << processTable[i].occupied
-		<< "\t\t" << processTable[i].pid
-		<< "\t" << processTable[i].startSeconds
-		<< "\t" << processTable[i].startNano << "\n";
-		}
-		Finprsec = clockVal->sysClockS;
-		Finprnano = clockVal->sysClockNano;
-	}
-//-----------------------------------------------------------------------------------------------------------------------------------
-//check if children terminated with a non-blocking wait	
-	int status;
-	pid_t finished;
-	while((finished = waitpid(-1, &status, WNOHANG)) > 0){
-		for(int i = 0; i < PROCESS_TABLE; i++){
-			if(processTable[i].occupied && processTable[i].pid == finished){
-				processTable[i].occupied = 0;
-				processTable[i].pid = 0;
-				processTable[i].startSeconds = 0;
-				processTable[i].startNano = 0;
-				runn--;
-				break;
-			}
+		if(reply.data == 0){
+			cout<<"OSS: worker"<< activeIndex<<"PID"
+			<<processTable[activeIndex].pid<<"is terminating\n";
+
+			logFile<<"OSS:Worker"<< activeIndex<<"PID"
+			<<processTable[activeIndex].pid<<"is terminating\n";
+
+			waitpid(processTable[activeIndex].pid, nullptr, 0);
+
+			processTable[activeIndex].occupied = 0;
+                    processTable[activeIndex].pid = 0;
+                    processTable[activeIndex].startSeconds = 0;
+                    processTable[activeIndex].startNano = 0;
+                    processTable[activeIndex].messagesSent = 0;
+                    runn--;
 		}
 	}
 
-	long long lastLaunchTotal = 
-		(long long)FinlaunSec * 1000000000LL + FinlaunNano;
-	if((currentTotal - lastLaunchTotal >= launIntN) &&
-			(laun < n_case) && (runn < s_case)){
+	nextMsgIndex = (activeIndex + 1) % PROCESS_TABLE;
+	}
+
+	if(launn < n_case && runn < s_case && (currentTime - lastLaunchedTime >= launchedInterval)){
+
 		int childOffsetSec = (rand() % t_case) + 1;
 		int childOffsetNano = rand() % 1000000000;
+            pid_t pid = fork();
+            if (pid < 0) {
+                cerr << "fork failed\n";
+                signal_handler(SIGALRM);
+            } else if (pid == 0) {
+                
+                string secStr = to_string(childOffsetSec);
+                string nanoStr = to_string(childOffsetNano);
+                execlp("./worker", "worker", secStr.c_str(), nanoStr.c_str(), (char*)NULL);
+                cerr << "exec failed\n";
+                exit(EXIT_FAILURE);
+            } else {
+                
+                for (int i = 0; i < PROCESS_TABLE; i++) {
+                    if (!processTable[i].occupied) {
+                        processTable[i].occupied = 1;
+                        processTable[i].pid = pid;
+                        processTable[i].startSeconds = clockVal->sysClockS;
+                        processTable[i].startNano = clockVal->sysClockNano;
+                        processTable[i].messagesSent = 0;
+                        break;
+                    }
+                }
+		launn++;
+		runn++;
+		lastLaunchedTime = currentTime;
 
-//fork and exec the worker		
-		pid_t pid = fork();
-		if(pid < 0){
-			cout<<"fork failed\n";
-			signal_handler(SIGALRM);
-		}else if 
-			(pid == 0){
-			string secStr = to_string(childOffsetSec);
-			string nanoStr = to_string(childOffsetNano);
-			execlp("./worker", "worker", secStr.c_str(), nanoStr.c_str(), (char*)NULL);
-			cout<<"exec failed\n";
-			exit(EXIT_FAILURE);
-		}else{
-	
-//update the process table			
-			for(int i = 0; i < PROCESS_TABLE; i++){
-				if(!processTable[i].occupied){
-					processTable[i].occupied = 1;
-					processTable[i].pid = pid;
-					processTable[i].startSeconds = clockVal->sysClockS;
-					processTable[i].startNano = clockVal->sysClockNano;
-					break;
-				}
-			}
-			laun++;
-			runn++;
-			FinlaunSec = clockVal->sysClockS;
-			FinlaunNano = clockVal->sysClockNano;
+		cout << "After launching new child, process table:\n";
+                logFile << "After launching new child, process table:\n";
+                printProcessTable();
+            }
+        }
+    }
 
-		}
-	}
-}
+	cout << "Simulation complete. Total processes launched: " << launchedCount
+         << ". Total messages sent: " << totalMessagesSent << "\n";
+    	logFile << "Simulation complete. Total processes launched: " << launchedCount
+            << ". Total messages sent: " << totalMessagesSent << "\n";
 
-shmdt(clockVal);
-shmctl(shmid, IPC_RMID, NULL);
+    // Cleanup and close the log file.
+    shmdt(clockVal);
+    shmctl(shmid, IPC_RMID, NULL);
+    msgctl(msgid, IPC_RMID, NULL);
+    logFile.close();
 
-return EXIT_SUCCESS;
-
+    return EXIT_SUCCESS;
 }
 
