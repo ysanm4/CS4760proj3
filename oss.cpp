@@ -138,7 +138,7 @@ int main( int argc, char *argv[]){
 				break;
 			case 'f':
                 		logFileName = optarg;
-                		f_var = true;
+             			f_var = true;
                 		break;
 
 			default:
@@ -219,9 +219,9 @@ long long lastPrintTime = 0;
 long long lastLaunchedTime = 0;
 
 //clock simulation -----------------------------------------------------------------------------------------------------------------
-long long launInterval = (long long)i_case * 10000000LL;
+long long  launchInterval = (long long)i_case * 10000000LL;
 
-int next MsgIndex = 0;
+int nextMsgIndex = 0;
 
 while(laun < n_case || runn > 0){
 	long long increment;
@@ -235,13 +235,13 @@ while(laun < n_case || runn > 0){
 	clockVal->sysClockS = totalNano / 1000000000LL;
 	clockVal->sysClockNano = totalNano % 1000000000LL;
 
-	long long currentTime = (long long)clockVal->sysClockS * 1000000000 +
+	long long currentTime = (long long)clockVal->sysClockS * 1000000000LL +
 		clockVal->sysClockNano;
 	if(currentTime - lastPrintTime >= 500000000LL){
 		cout<<"OSS PID:" << getpid() <<"SysClock:"
 			<< clockVal->sysClockS <<":"<< clockVal->sysClockNano <<"\n";
 		logFile <<"OSS PID:" <<getpid() <<"SysClock:"
-			<< clockVal->sysClock <<":"<< clockVal->sysClockNano << "\n";
+			<< clockVal->sysClockS <<":"<< clockVal->sysClockNano << "\n";
 		printProcessTable();
 		lastPrintTime = currentTime;
 	}
@@ -263,15 +263,18 @@ while(laun < n_case || runn > 0){
 		msg.data = 1;
 		if(msgsnd(msgid, &msg, sizeof(msg.data), 0) == -1){
 			perror("msgsnd");
+		}else{
 			processTable[activeIndex].messagesSent++;
-			totalMessagesSent++
+			totalMessagesSent++;
 		cout<< "OSS: sending msg to worker" << activeIndex
 		    << "PID" << processTable[activeIndex].pid
-		    << " at time" << clockVal->sysClockS << ":" << clockVal-sysClockNano << "\n";
+		    << " at time" << clockVal->sysClockS << ":" << clockVal->sysClockNano << "\n";
+	
     logFile << "OSS: Sending messages to worker" << activeIndex
              << " PID " << processTable[activeIndex].pid
  	     << " at time " << clockVal->sysClockS << ":" << clockVal->sysClockNano << "\n";
 		}
+
 
 	Message reply;
 	if(msgrcv(msgid, &reply, sizeof(reply.data), processTable[activeIndex].pid, 0) == -1){
@@ -306,7 +309,7 @@ while(laun < n_case || runn > 0){
 	nextMsgIndex = (activeIndex + 1) % PROCESS_TABLE;
 	}
 
-	if(launn < n_case && runn < s_case && (currentTime - lastLaunchedTime >= launchedInterval)){
+	if(laun < n_case && runn < s_case && (currentTime - lastLaunchedTime >= launchInterval)){
 
 		int childOffsetSec = (rand() % t_case) + 1;
 		int childOffsetNano = rand() % 1000000000;
@@ -333,7 +336,7 @@ while(laun < n_case || runn > 0){
                         break;
                     }
                 }
-		launn++;
+		laun++;
 		runn++;
 		lastLaunchedTime = currentTime;
 
@@ -344,9 +347,9 @@ while(laun < n_case || runn > 0){
         }
     }
 
-	cout << "Simulation complete. Total processes launched: " << launchedCount
+	cout << "Simulation complete. Total processes launched: " << laun
          << ". Total messages sent: " << totalMessagesSent << "\n";
-    	logFile << "Simulation complete. Total processes launched: " << launchedCount
+    	logFile << "Simulation complete. Total processes launched: " << laun
             << ". Total messages sent: " << totalMessagesSent << "\n";
 
     // Cleanup and close the log file.

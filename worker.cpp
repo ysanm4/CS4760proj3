@@ -42,7 +42,7 @@ int Nanoval = atoi(argv[2]);
 
 //shared memory key
 
-key_t key shmKey= 6321;
+key_t shmKey= 6321;
 
 //access to shared memory
 
@@ -93,7 +93,7 @@ cout << "WORKER PID: " << getpid()
          cout << "JUST STARTING" << "\n";
 	
 	int iteration = 0;
-	message msg;
+	Message msg;
 
 //checks and busy wait
   
@@ -134,7 +134,7 @@ if(curr_Sec > termSec || (curr_Sec == termSec && curr_Nano >= termNano)){
          << " TermTimeS: " << termSec
          << " TermTimeNano: " << termNano << "\n";
     cout << "--Terminating after sending message back to oss" 
-	    << iteration << "iterations.\n;
+	    << iteration << "iterations.\n";
     reply.data = 0;
     if(msgsnd(msgid, &reply, sizeof(reply.data), 0) == -1){
 	    perror("msgsnd");
