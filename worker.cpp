@@ -14,7 +14,6 @@
 using namespace std;
 
 //Shared memory clock structure
-
 struct ClockDigi{
 	int sysClockS;
 	int sysClockNano;
@@ -27,7 +26,6 @@ struct Message{
 };
 
 //logic for shared memory
-
 int main(int argc, char** argv){
 	if(argc !=3){
 		cout<<"Error please use two arguments for:"<< argv[0] <<"\n";
@@ -36,16 +34,13 @@ int main(int argc, char** argv){
 
 
 //start parseing time
-
 int Secval = atoi(argv[1]);
 int Nanoval = atoi(argv[2]);
 
 //shared memory key
-
 key_t shmKey= 6321;
 
 //access to shared memory
-
 int shmid = shmget(shmKey, sizeof(ClockDigi), 0666);
 if(shmid < 0){
 	perror("shmget");
@@ -59,12 +54,10 @@ if (clockVal == (void*) -1){
 }
 
 //start reading from simulated clock 
-
 int startSec = clockVal->sysClockS;
 int startNano = clockVal->sysClockNano;
 
 //termination
-
 int termSec = startSec + Secval;
 int termNano = startNano + Nanoval;
 
@@ -73,9 +66,8 @@ if(termNano >= 1000000000){
 	termNano = termNano % 1000000000;
 }
 
-//outputs
-//...........................................................................................
 
+//message queue
 key_t msgKey = 6321;
 int msgid = msgget(msgKey, 0666);
 if(msgid < 0){
@@ -84,32 +76,34 @@ if(msgid < 0){
 	return EXIT_FAILURE;
 }
 
+//outputs
+//...........................................................................................
 cout << "WORKER PID: " << getpid()
          << " PPID: " << getppid()
          << " SysClockS: " << clockVal->sysClockS
          << " SysclockNano: " << clockVal->sysClockNano
          << " TermTimeS: " << termSec
          << " TermTimeNano: " << termNano << "\n";
-         cout << "JUST STARTING" << "\n";
+         cout << "--JUST STARTING" << "\n";
 	
 	int iteration = 0;
 	Message msg;
 
-//checks and busy wait
-  
-	 
+//checks and busy wait	 
 while (true){
-
+//waiting for message
 	if(msgrcv(msgid, &msg, sizeof(msg.data), getpid(),0) == -1){
 		perror("msgrcv");
 		break;
 	}
 
 	iteration++;
-
+//read from clock
 	int curr_Sec = clockVal->sysClockS;
 	int curr_Nano = clockVal->sysClockNano;
 
+//outputs
+//...........................................................................................	
     cout << "WORKER PID: " << getpid()
          << " PPID: " << getppid()
          << " SysClockS: " << curr_Sec
@@ -120,12 +114,12 @@ while (true){
 	 << (iteration == 1 ? "has" : "s have")
 	 << "passed since starting\n";
 
+//send back message    
    Message reply;
    reply.mtype = getpid(); 
   
 
     //checks to term or not
-   
 if(curr_Sec > termSec || (curr_Sec == termSec && curr_Nano >= termNano)){  
     cout << "WORKER PID: " << getpid()
          << " PPID: " << getppid()
